@@ -21,7 +21,18 @@ jobs:
 
     - name: Build
       working-directory: ${{env.GITHUB_WORKSPACE}}
-      run: msbuild /m /p:Configuration=${{matrix.BUILD_CONFIGURATION}} /p:Platform=${{matrix.BUILD_PLATFORM}} ${{env.SOLUTION_FILE_PATH}}
+      
+
+      run: |
+         msbuild /m /p:Configuration=${{matrix.BUILD_CONFIGURATION}} /p:Platform=${{matrix.BUILD_PLATFORM}} ${{env.SOLUTION_FILE_PATH}}
+         7z a Dump1090.zip D:/a/Dump1090/
+      shell: cmd
+
+    - name: upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+          name: Dump1090
+          path:  Dump1090.zip
 
 # test:
 #   steps:
