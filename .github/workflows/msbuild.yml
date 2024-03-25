@@ -11,7 +11,7 @@ jobs:
       fail-fast: true
       matrix:
         BUILD_CONFIGURATION: [ Release ]
-        BUILD_PLATFORM:      [ x86, x64 ]
+        BUILD_PLATFORM:      [ x64 ]
 
     steps:
     - uses: actions/checkout@v3
