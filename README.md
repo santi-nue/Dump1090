@@ -3,7 +3,7 @@
 [![MSBuild](https://github.com/gvanem/Dump1090/actions/workflows/msbuild.yml/badge.svg?branch=main)](https://github.com/gvanem/Dump1090/actions/workflows/msbuild.yml)
 
 A simple **ADS-B** (*Automatic Dependent Surveillance - Broadcast*) receiver, decoder and web-server.<br>
-It requires a RTL-SDR USB-stick and Osmocom's **[librtlsdr](https://github.com/osmocom/rtl-sdr)**.
+It requires a RTL-SDR USB-stick (the **librtlsdr** interface is **[built-in](src/externals/rtl-sdr/)**)).
 
 This *Mode S* decoder is based on the original *Dump1090* by **Salvatore Sanfilippo**
 which is **[here](https://github.com/antirez/dump1090.git)**.<br>
@@ -14,7 +14,7 @@ and added some more references and screen-shots. But in the source-code I've don
  * A YouTube **[video](https://www.youtube.com/watch?v=BDLFHdq540g&ab_channel=AP47TV)**
    explaining it's basics and motivation.
  * A detailed technical description by professor **[Junzi Sun](https://mode-s.org/decode/)**.
- * Or as a **[PDF](The-1090MHz-riddle.pdf)** in this repo.
+ * Or as a **[PDF](docs/The-1090MHz-riddle.pdf)** in this repo.
 
 **The main features** of *Dump1090* are:
 
@@ -40,12 +40,13 @@ and added some more references and screen-shots. But in the source-code I've don
 
 ## Building
 
-  Assuming you have downloaded this package to `c:\dev\Dump1090`, then `cd c:\dev\Dump1090` and do:
+  Assuming you have downloaded (or `git clone`-d) this package to `c:\dev\Dump1090`,
+  then `cd c:\dev\Dump1090\src` and do:
 
   * Using GNU-make, type:
-    * `c:\dev\Dump1090> make -f Makefile.Windows CC=cl` (or `CC=clang-cl`).
+    * `c:\dev\Dump1090\src> make -f Makefile.Windows CC=cl` (or `CC=clang-cl`).
   * Or using Visual Studio tools:
-    * `c:\dev\Dump1090> msbuild -p:Configuration=Release -p:Platform="x86" Dump1090.sln`.
+    * `c:\dev\Dump1090\src> msbuild -p:Configuration=Release -p:Platform="x86" Dump1090.sln`.
     * or start the Visual Studio IDE, open `Dump1090.sln`, right-click and `Build Solution`. <br>
       The project may have to be retargeted. *Devenv* would do this automatically and print <br>
       `Configuration 'Release|x64': changing Platform Toolset to 'v143' (was 'v142')` when finished.
@@ -165,8 +166,9 @@ Running with `web-page = %~dp0\web_root-Tar1090\index.html` in the `dump1090.cfg
 will show a much more advanced Web-page thanks to [**Tar1090**](https://github.com/wiedehopf/tar1090/) and data from [**Tar1090-DB**](https://github.com/wiedehopf/tar1090-db/):
 **![tar1090 output](dump1090-tar1090-web.png)**
 
-Building with a *packed Web-filesystem* is also possible. Then **all** web-pages are built-in to the `dump1090.exe` file.<br>
-Ref. `USE_PACKED_WEB = 1` in [**Makefile.Windows**](https://github.com/gvanem/Dump1090/blob/main/Makefile.Windows#L22).
+Building with a *packed Web-filesystem* is also possible. Then **all** web-pages are built into a `web-pages.dll` file. <br>
+Ref. `USE_PACKED_WEB = 1` in [**Makefile.Windows**](https://github.com/gvanem/Dump1090/blob/main/Makefile.Windows#L22)
+and a `web-page = web-pages.dll;N` in the [**config-file**](dump1090.cfg).
 
 
 ## Using RTL1090 as RAW source
@@ -220,7 +222,7 @@ the `--infile` option with `-` as argument.
 
 When a `aircraft-database.csv` is present and used with a `.bin`-file, it can show output like:
   ```
-  c:\dev\Dump1090> dump1090 --infile testfiles\modes1.bin
+  c:\dev\Dump1090> dump1090 --infile testfiles/modes1.bin
   ...
   *5d4d20237a55a6;
   CRC: 7a55a6 (ok)
@@ -246,7 +248,7 @@ The option `--update` will check and download <br>
 **https://opensky-network.org/datasets/metadata/aircraftDatabase.zip** and
 extract using the internal [**zip**](https://github.com/kuba--/zip) functions.
 And also rebuild the `aircraft-database.csv.sqlite` file using the internal bundled
-[**sqlite3.c**](externals/sqlite3.c).
+[**sqlite3.c**](src/externals/sqlite3.c).
 
 ## Additional options
 
@@ -322,6 +324,10 @@ see on the console what's happening: <br>
     MSG,3,,,738065,,,,,,,35000,,,34.81609,34.07810,,,0,0,0,0
     ```
     This can be used to feed data to various sharing sites without the need to use another decoder.
+
+    This is a screen-shot of dump1090 together with [**tools/SBS_client.py**](tools/SBS_client.py):
+    **![SBS_client](dump1090-SBS.png)** invoked by [**run-dump1090-SBS.bat**](run-dump1090-SBS.bat).
+
 
 ## Antenna
 

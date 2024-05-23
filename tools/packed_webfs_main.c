@@ -1,7 +1,15 @@
 /**
- * For 'packed_test.exe'.
+ * For '../packed_test.exe'.
+ *
+ * Disable some Mongoose features not needed here.
  */
+#undef  MG_ENABLE_EPOLL
+#undef  MG_ENABLE_FILE
+#define MG_ENABLE_EPOLL 0
+#define MG_ENABLE_FILE  0
+
 #include "misc.h"
+#include "mongoose.c"
 
 typedef const char *(*spec_func) (void);
 typedef const char *(*unlist_func) (size_t i);
@@ -18,9 +26,9 @@ extern const char *mg_unlist_2 (size_t i);
 extern const char *mg_unpack_2 (const char *name, size_t *size, time_t *mtime);
 extern const char *mg_spec_2 (void);
 
-static int          rc = 0;
-static packed_file *lookup_table = NULL;
+static file_packed *lookup_table = NULL;
 static size_t       lookup_table_sz = 0;
+static int          rc = 0;
 
 static void check_specs (spec_func spec_1, spec_func spec_2)
 {
@@ -50,6 +58,7 @@ static void check_numbers (unlist_func unlist_1, unlist_func unlist_2)
   {
     rc++;
     fprintf (stderr, "'unlist_1()' gave %zu files. But 'unlist_2()' gave %zu files.\n", num_1, num_2);
+    lookup_table_sz = min (num_1, num_2);
   }
 }
 
@@ -120,21 +129,22 @@ static void check_listing (unlist_func unlist_1, unlist_func unlist_2,
 
 static int compare_on_name (const void *_a, const void *_b)
 {
-  const packed_file *a = (const packed_file*) _a;
-  const packed_file *b = (const packed_file*) _b;
+  const file_packed *a = (const file_packed*) _a;
+  const file_packed *b = (const file_packed*) _b;
   return strcmp (a->name, b->name);
 }
 
 static void create_lookup_table (unlist_func unlist, unpack_func unpack)
 {
-  const char *fname;
-  size_t      num;
+  const char  *fname;
+  size_t       num;
+  file_packed *l;
 
-  lookup_table = malloc (sizeof(*lookup_table) * lookup_table_sz);
-  for (num = 0; (fname = (*unlist)(num)) != NULL; num++)
+  lookup_table = l = malloc (sizeof(*lookup_table) * lookup_table_sz);
+  for (num = 0; (fname = (*unlist)(num)) != NULL; num++, l++)
   {
-    lookup_table[num].name = fname;
-    lookup_table[num].data = (const unsigned char*) (*unpack) (fname, &lookup_table[num].size, &lookup_table[num].mtime);
+    l->name = fname;
+    l->data = (const unsigned char*) (*unpack) (fname, &l->size, &l->mtime);
   }
   qsort (lookup_table, num, sizeof(*lookup_table), compare_on_name);
 }
@@ -156,7 +166,7 @@ static double normal_test (const char *fname, unpack_func unpack)
  */
 static double bsearch_test (const char *fname)
 {
-  packed_file key;
+  file_packed key;
   double      now = get_usec_now();
   const char *data;
 
@@ -167,19 +177,21 @@ static double bsearch_test (const char *fname)
 }
 
 /*
- * Check the lookup speed of an normal 'unpack()' vs. a 'bsearch()' based lookup.
+ * Check the lookup speed of a normal 'unpack()' vs. a 'bsearch()' based lookup.
  */
 static void check_speed (unlist_func unlist_1, unlist_func unlist_2,
-                         unpack_func unpack_1, unpack_func unpack_2)
+                         unpack_func unpack_1, unpack_func unpack_2,
+                         size_t max_loops)
 {
   const char *fname_1, *fname_2;
   double      time_normal  = 0.0;
   double      time_bsearch = 0.0;
+  uint64_t    per_sec;
   size_t      loops, idx;
 
   create_lookup_table (unlist_1, unpack_1);
 
-  for (loops = 0; loops < 1000; loops++)
+  for (loops = 0; loops < max_loops; loops++)
   {
     idx = random_range (0, lookup_table_sz - 1);
     fname_1 = (*unlist_1) (idx);
@@ -191,18 +203,85 @@ static void check_speed (unlist_func unlist_1, unlist_func unlist_2,
     time_bsearch += bsearch_test (fname_1);
     time_normal  += normal_test (fname_2, unpack_2);
   }
-  fprintf (stderr, "bsearch: %3.2f usec/lookup, %7llu lookups/sec.\n", time_bsearch / loops, (uint64_t) (loops * 1E6 / time_bsearch));
-  fprintf (stderr, "normal:  %3.2f usec/lookup, %7llu lookups/sec.\n", time_normal / loops,  (uint64_t) (loops * 1E6 / time_normal));
+
+  per_sec = (uint64_t) (loops * 1E6 / time_bsearch);
+  fprintf (stderr, "bsearch: %3.2f usec/lookup, %s lookups/sec.\n",
+           time_bsearch / loops, qword_str(per_sec));
+
+  per_sec = (uint64_t) (loops * 1E6 / time_normal);
+  fprintf (stderr, "normal:  %3.2f usec/lookup, %s lookups/sec.\n",
+           time_normal / loops, qword_str(per_sec));
   free (lookup_table);
+}
+
+#if defined(USE_PACKED_DLL)
+static spec_func   dll_mg_spec_1,   dll_mg_spec_2;
+static unlist_func dll_mg_unlist_1, dll_mg_unlist_2;
+static unpack_func dll_mg_unpack_1, dll_mg_unpack_2;
+
+static bool load_web_dll (const char *dll)
+{
+  MODES_NOTUSED (dll);
+  return (true);
+}
+
+static bool unload_web_dll (void)
+{
+  return (true);
+}
+#endif
+
+static void check_DLL (const char *dll_basename)
+{
+  mg_file_path dll_fullname;
+
+  snprintf (dll_fullname, sizeof(dll_fullname), "%s\\%s", Modes.where_am_I, dll_basename);
+
+#if defined(USE_PACKED_DLL) && 0
+  /*
+   * Add a version of this from net_io.c:
+   */
+  if (!load_web_dll(dll_fullname))
+     rc++;
+
+  check_specs   (dll_mg_spec_1, dll_mg_spec_2);
+  check_numbers (dll_mg_unlist_1, dll_mg_unlist_2);
+  check_listing (dll_mg_unlist_1, dll_mg_unlist_2, dll_mg_unpack_1, dll_mg_unpack_2);
+  check_sizes   (dll_mg_unlist_1, dll_mg_unlist_2, dll_mg_unpack_1, dll_mg_unpack_2);
+  check_speed   (dll_mg_unlist_1, dll_mg_unlist_2, dll_mg_unpack_1, dll_mg_unpack_2, 1000);
+
+  unload_web_dll();
+#endif
+
+  MODES_NOTUSED (dll_fullname);
+  MODES_NOTUSED (dll_basename);
+}
+
+static void init (void)
+{
+#ifdef USE_MIMALLOC
+  Modes.debug |= DEBUG_GENERAL;
+  mimalloc_init();
+#endif
+
+  memset (&Modes, '\0', sizeof(Modes));
+  GetModuleFileNameA (NULL, Modes.who_am_I, sizeof(Modes.who_am_I));
+  snprintf (Modes.where_am_I, sizeof(Modes.where_am_I), "%s", dirname(Modes.who_am_I));
 }
 
 int main (void)
 {
+  init();
   check_specs   (mg_spec_1, mg_spec_2);
   check_numbers (mg_unlist_1, mg_unlist_2);
   check_listing (mg_unlist_1, mg_unlist_2, mg_unpack_1, mg_unpack_2);
   check_sizes   (mg_unlist_1, mg_unlist_2, mg_unpack_1, mg_unpack_2);
-  check_speed   (mg_unlist_1, mg_unlist_2, mg_unpack_1, mg_unpack_2);
+  check_speed   (mg_unlist_1, mg_unlist_2, mg_unpack_1, mg_unpack_2, 1000);
+  check_DLL ("web-pages.dll");
+
+#ifdef USE_MIMALLOC
+  puts ("\nStatistics from 'mimalloc':");
+#endif
   return (rc);
 }
 
@@ -223,6 +302,9 @@ DEAD_CODE (const char *, "?", mz_version, (void))
 DEAD_CODE (const char *, "?", sqlite3_libversion, (void))
 DEAD_CODE (const char *, "?", sqlite3_compileoption_get, (int N))
 DEAD_CODE (const char *, "?", trace_strerror, (DWORD err))
-DEAD_CODE (const char *, "?", mg_unpack, (const char *name, size_t *size, time_t *mtime))
-DEAD_CODE (const char *, "?", mg_unlist, (size_t i))
 DEAD_CODE (uint32_t,     0,   rtlsdr_last_error, (void))
+
+#if defined(MG_ENABLE_PACKED_FS) && (MG_ENABLE_PACKED_FS == 1)
+  DEAD_CODE (const char *, "?", mg_unpack, (const char *name, size_t *size, time_t *mtime))
+  DEAD_CODE (const char *, "?", mg_unlist, (size_t i))
+#endif

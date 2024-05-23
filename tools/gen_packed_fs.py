@@ -1,4 +1,4 @@
-#!/usr/env python
+#!/usr/bin/env python3
 """
 A tool to generate a .c-file for a built-in "Packed FileSystem".
 Inspired by Mongoose' 'test/pack.c' program.
@@ -31,7 +31,7 @@ C_TOP = """//
 """
 
 C_ARRAY = """
-static const packed_file packed_files[] = {
+static const file_packed packed_files[] = {
 //  data,  fsize,         modified
 """
 
@@ -43,7 +43,7 @@ const char *mg_unlist%s (size_t i)
 
 const char *mg_unpack%s (const char *name, size_t *size, time_t *mtime)
 {
-  const packed_file *p;
+  const file_packed *p;
 
   for (p = packed_files; p->name; p++)
   {
